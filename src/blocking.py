@@ -22,7 +22,8 @@ from common import WORK_DIR
 
 MAX_DF = int(os.environ.get("ER_MAX_DF", 300))
 TOP_K = int(os.environ.get("ER_TOP_K", 12))
-CHUNK = 500_000
+CHUNK = 250_000
+MAX_DF_TYPE = {"a": 60}
 
 KEY_WEIGHT = {"n": 1.0, "p": 0.6, "b": 1.0, "x": 1.0, "nn": 1.2, "a": 0.8, "al": 0.8}
 
@@ -92,8 +93,8 @@ def run(split, sample_frac=None):
     n1 = s1.height
     k1 = make_keys(s1)
     del s1
-    df = k1.group_by("h").agg(pl.len().alias("df"))
-    df = df.filter(pl.col("df") <= MAX_DF).with_columns((np.log(n1) - pl.col("df").log()).cast(pl.Float32).alias("idf"))
+    df = k1.group_by("h", "kt").agg(pl.len().alias("df"))
+    df = df.filter(pl.col("df") <= pl.col("kt").replace_strict(MAX_DF_TYPE, default=MAX_DF, return_dtype=pl.UInt32)).drop("kt").with_columns((np.log(n1) - pl.col("df").log()).cast(pl.Float32).alias("idf"))
     k1 = k1.join(df, on="h").select("h", pl.col("rid").alias("s1"), "kt", "idf")
     k1 = k1.with_columns((pl.col("idf") * pl.col("kt").replace_strict(KEY_WEIGHT, return_dtype=pl.Float32)).alias("w")).drop("kt", "idf")
     print(f"s1 keys {k1.height:,} ({time.time()-t0:.0f}s)", flush=True)
