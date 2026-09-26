@@ -88,7 +88,7 @@ def compute(cand, s1a, qa):
         (pl.col("atok_inter") / pl.col("atok_union").clip(1)).alias("atok_jacc"),
         (pl.col("ntok_inter") / pl.col("ntok_union").clip(1)).alias("ntok_jacc"),
         pl.col("num_first_eq").fill_null(False), pl.col("num_first_in").fill_null(False),
-        pl.DataFrame(feats),
+        *[pl.Series(k, v) for k, v in feats.items()],
     )
     f = f.with_columns([pl.col(x).cast(pl.Float32) for x in f.columns if x not in ("q", "s1")])
     # empty address -> similarity is meaningless; mark as missing
