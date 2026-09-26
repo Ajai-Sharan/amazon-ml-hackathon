@@ -35,8 +35,27 @@ def add_group_feats(c):
     )
 
 
-def compute(cand, s1a, qa):
-    """cand: q, s1, bscore, nkeys  ->  DataFrame of features (plus q, s1)."""
+def compute(cand, s1a, qa, max_rows=1_000_000):
+    """cand: q, s1, bscore, nkeys  ->  DataFrame of features (plus q, s1).
+
+    Works in slices of whole queries to bound the memory used by the
+    Python string lists handed to rapidfuzz.
+    """
+    cand = cand.sort("q")
+    if cand.height <= max_rows:
+        return _compute(cand, s1a, qa)
+    qs = cand["q"].to_numpy()
+    out, st = [], 0
+    while st < len(qs):
+        en = min(st + max_rows, len(qs))
+        while en < len(qs) and qs[en] == qs[en - 1]:
+            en += 1
+        out.append(_compute(cand.slice(st, en - st), s1a, qa))
+        st = en
+    return pl.concat(out)
+
+
+def _compute(cand, s1a, qa):
     c = add_group_feats(cand)
     c = c.join(qa, on="q", how="left").join(s1a, on="s1", how="left", suffix="_1")
     qn, sn = c["name_core"].to_list(), c["name_core_1"].to_list()
