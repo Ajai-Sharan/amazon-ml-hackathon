@@ -28,12 +28,18 @@ TRAIN_ROWS = 6_000_000
 
 
 def build(split):
-    sc = pl.read_parquet(os.path.join(WORK_DIR, f"scores_{split}.parquet"))
-    cand = pl.read_parquet(os.path.join(WORK_DIR, f"cand_{split}.parquet"), columns=["q", "s1", "bscore", "nkeys"])
     n2 = pl.scan_parquet(os.path.join(WORK_DIR, f"{split}_s2.parquet")).select(pl.len()).collect().item()
-    sc = sc.with_columns(pl.col("p").rank("ordinal", descending=True).over("q").alias("prank"))
-    d = sc.filter(pl.col("prank") <= TOPN).join(cand, on=["q", "s1"], how="left")
-    del sc, cand
+    n3 = pl.scan_parquet(os.path.join(WORK_DIR, f"{split}_s3.parquet")).select(pl.len()).collect().item()
+    parts, step = [], 1_000_000
+    for lo in range(0, n2 + n3, step):   # top-N links per query, chunked to bound memory
+        rng_ = pl.col("q").is_between(lo, lo + step - 1)
+        sc = pl.scan_parquet(os.path.join(WORK_DIR, f"scores_{split}.parquet")).filter(rng_).collect()
+        cand = (pl.scan_parquet(os.path.join(WORK_DIR, f"cand_{split}.parquet"))
+                .select("q", "s1", "bscore", "nkeys").filter(rng_).collect())
+        sc = sc.with_columns(pl.col("p").rank("ordinal", descending=True).over("q").alias("prank"))
+        parts.append(sc.filter(pl.col("prank") <= TOPN).join(cand, on=["q", "s1"], how="left"))
+    d = pl.concat(parts)
+    del parts, sc, cand
     d = d.with_columns((pl.col("q") >= n2).cast(pl.UInt8).alias("is_s3"))
     d = d.with_columns(
         pl.col("p").max().over("q").alias("q_pmax"),
