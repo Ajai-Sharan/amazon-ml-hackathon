@@ -171,8 +171,9 @@ about 2 hours and needs no external data or pretrained models.
 * `src/make_submission.py` — writes `matching_results.tsv` and `candidate_pairs.tsv`.
 * `src/postprocess.py` — expected-F0.5 rule (experimental, not used).
 
-`candidate_pairs.tsv` is exactly the set of pairs scored by the stage-1 model, so every matched ID
-is also a candidate.
+`candidate_pairs.tsv` is the input of the final (stage-2) model: the top-3 stage-1 links of every
+Source 2/3 record (≈29.7 M pairs on test), so every matched ID is also a candidate. The upstream
+blocking output (top-10 per record, ≈97.6 M pairs) is the stage-1 input.
 
 ### B. Additional Results
 Blocking recall on a 3 % query sample, as a function of K: @1 0.929, @3 0.952, @5 0.959,

@@ -20,15 +20,15 @@ def id_lists(pairs, s1ids, qids, col):
 def main(out_dir):
     os.makedirs(out_dir, exist_ok=True)
     s1ids, qids = id_maps("test")
-    # candidate set = every pair the stage-1 model scored
-    cand = pl.read_parquet(os.path.join(WORK_DIR, "scores_test.parquet"), columns=["s1", "q"])
+    # candidate set = exactly the pairs the final model runs inference on
     s2_path = os.path.join(WORK_DIR, "scores2_test.parquet")
-    if os.path.exists(s2_path):          # stage-2 re-scored links
+    if os.path.exists(s2_path):          # stage-2 re-scored links (top-3 stage-1 links per record)
         thr = float(os.environ.get("ER_THR", json.load(open(os.path.join(WORK_DIR, "thr2.json")))["thr"]))
         scores = pl.read_parquet(s2_path).select("q", "s1", pl.col("p2").alias("p"))
     else:
         thr = float(os.environ.get("ER_THR", json.load(open(os.path.join(WORK_DIR, "thr.json")))["thr"]))
         scores = pl.read_parquet(os.path.join(WORK_DIR, "scores_test.parquet"))
+    cand = scores.select("s1", "q")
     matches = assign(scores, thr)
     id_lists(matches, s1ids, qids, "matched_entity_ids").write_csv(
         os.path.join(out_dir, "matching_results.tsv"), separator="\t", quote_style="never")
