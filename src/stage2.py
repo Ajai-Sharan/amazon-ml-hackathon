@@ -15,6 +15,9 @@ import sys
 import lightgbm as lgb
 import numpy as np
 import polars as pl
+from rapidfuzz import fuzz, process
+
+import features as F
 
 from common import WORK_DIR
 from evaluate import gt_pairs, id_maps, macro_f05
@@ -65,11 +68,56 @@ def build(split):
         pl.col("p").rank("ordinal", descending=True).over(["s1", "is_s3"]).alias("e_rank_src"),
     )
     d = d.with_columns((pl.col("p") / pl.col("e_pmax")).alias("e_prel"))
-    return d
+    return add_cluster_feats(d, split)
+
+
+def add_cluster_feats(d, split):
+    """Group support: similarity of the query to the entity's best other linked record.
+
+    A record whose text is too noisy to match the Source 1 record directly often
+    still closely matches another record already confidently linked to that entity.
+    """
+    members = (d.filter((pl.col("prank") == 1) & (pl.col("p") > 0.5)).select("s1", "q", "p")
+               .sort(["s1", "p"], descending=[False, True])
+               .with_columns(pl.int_range(1, pl.len() + 1).over("s1").alias("m"))
+               .filter(pl.col("m") <= 2))
+    r1 = members.filter(pl.col("m") == 1).select("s1", pl.col("q").alias("r1q"), pl.col("p").alias("r1p"))
+    r2 = members.filter(pl.col("m") == 2).select("s1", pl.col("q").alias("r2q"), pl.col("p").alias("r2p"))
+    d = d.join(r1, on="s1", how="left").join(r2, on="s1", how="left")
+    self1 = pl.col("r1q") == pl.col("q")
+    d = d.with_columns(
+        pl.when(self1).then(pl.col("r2q")).otherwise(pl.col("r1q")).alias("rep_q"),
+        pl.when(self1).then(pl.col("r2p")).otherwise(pl.col("r1p")).fill_null(0).alias("c_rep_p"),
+    ).drop("r1q", "r1p", "r2q", "r2p")
+    _, qa = F.load_attrs(split)
+    qa = qa.select("q", "name_core", "name_ph", "addr_f")
+    cols = {k: [] for k in ("c_n_tset", "c_n_ratio", "c_p_ratio", "c_a_tset", "c_a_ratio")}
+    step = 3_000_000
+    for st in range(0, d.height, step):
+        c = d.slice(st, step).select("q", "rep_q").join(qa, on="q", how="left").join(
+            qa.rename({"q": "rep_q"}), on="rep_q", how="left", suffix="_r")
+        has = c["rep_q"].is_not_null().to_numpy()
+        pairs = {
+            "c_n_tset": ("name_core", fuzz.token_set_ratio), "c_n_ratio": ("name_core", fuzz.ratio),
+            "c_p_ratio": ("name_ph", fuzz.ratio), "c_a_tset": ("addr_f", fuzz.token_set_ratio),
+            "c_a_ratio": ("addr_f", fuzz.ratio),
+        }
+        for name, (col, scorer) in pairs.items():
+            a = c[col].fill_null("").to_list()
+            b = c[col + "_r"].fill_null("").to_list()
+            v = process.cpdist(a, b, scorer=scorer, workers=-1, dtype=np.float32)
+            v[~has] = np.nan
+            if col == "addr_f":
+                empty = (c[col].fill_null("").str.len_chars() == 0) | (c[col + "_r"].fill_null("").str.len_chars() == 0)
+                v[empty.to_numpy()] = np.nan
+            cols[name].append(v)
+    del qa
+    return d.with_columns([pl.Series(k, np.concatenate(v)) for k, v in cols.items()]).drop("rep_q")
 
 
 FEATS = ["p", "prank", "bscore", "nkeys", "is_s3", "q_pmax", "q_psum", "q_n", "q_pother", "q_margin",
-         "e_n", "e_psum", "e_pmax", "e_ntop", "e_ntop_s3", "e_ntop_s2", "e_rank", "e_rank_src", "e_prel"]
+         "e_n", "e_psum", "e_pmax", "e_ntop", "e_ntop_s3", "e_ntop_s2", "e_rank", "e_rank_src", "e_prel",
+         "c_rep_p", "c_n_tset", "c_n_ratio", "c_p_ratio", "c_a_tset", "c_a_ratio"]
 
 
 def X(d):
