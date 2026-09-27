@@ -98,11 +98,16 @@ def _compute(cand, s1a, qa):
         pl.col("addr_nums").list.set_intersection("addr_nums_1").list.len().alias("num_inter"),
         (pl.col("addr_nums").list.first() == pl.col("addr_nums_1").list.first()).alias("num_first_eq"),
         pl.col("addr_nums").list.first().is_in(pl.col("addr_nums_1")).alias("num_first_in"),
+        pl.col("addr_nums").list.first().fill_null("").alias("_n1q"),
+        pl.col("addr_nums_1").list.first().fill_null("").alias("_n1s"),
         pl.col("addr_toks").list.set_intersection("addr_toks_1").list.len().alias("atok_inter"),
         pl.col("addr_toks").list.set_union("addr_toks_1").list.len().alias("atok_union"),
         pl.col("name_core").str.split(" ").list.set_intersection(pl.col("name_core_1").str.split(" ")).list.len().alias("ntok_inter"),
         pl.col("name_core").str.split(" ").list.set_union(pl.col("name_core_1").str.split(" ")).list.len().alias("ntok_union"),
     )
+    n1q, n1s = f["_n1q"].to_list(), f["_n1s"].to_list()
+    feats["num_first_ratio"] = _pd(n1q, n1s, fuzz.ratio)
+    f = f.drop("_n1q", "_n1s")
     f = f.with_columns(
         (pl.col("atok_inter") / pl.col("atok_union").clip(1)).alias("atok_jacc"),
         (pl.col("ntok_inter") / pl.col("ntok_union").clip(1)).alias("ntok_jacc"),

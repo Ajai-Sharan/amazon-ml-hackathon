@@ -41,6 +41,9 @@ NUM_RE = re.compile(r"\d+")
 ORD_RE = re.compile(r"^(\d+)(?:st|nd|rd|th|er|e|eme)$")
 NULL_RE = re.compile(r"<null>|\bn/a\b|\bnull\b|\bnone\b")
 
+LEET = str.maketrans("013456789", "oleasgtbg")
+LEET_RE = re.compile(r"(?=.*[a-z])(?=.*\d)")
+
 DEV_MAP = None
 
 
@@ -56,6 +59,12 @@ def name_tokens(s):
     s = re.sub(r"[^a-z0-9]+", " ", s)
     toks = []
     for t in s.split():
+        if t.isdigit() and len(t) >= 7:          # phone numbers appended to names
+            continue
+        if LEET_RE.search(t) and not t.isdigit():  # "antim0ny", "federa1", "6roup"
+            t = t.translate(LEET)
+        if len(t) > 8 and t.endswith("com"):      # "dermatologycentercom"
+            t = t[:-3]
         t = NAME_CANON.get(t, t)
         if t:
             toks.extend(t.split())

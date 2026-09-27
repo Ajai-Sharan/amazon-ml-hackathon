@@ -26,7 +26,7 @@ TOP_K = int(os.environ.get("ER_TOP_K", 12))
 CHUNK = 250_000
 MAX_DF_TYPE = {"a": 60}
 
-KEY_WEIGHT = {"n": 1.0, "p": 0.6, "b": 1.0, "x": 1.0, "nn": 1.2, "a": 0.8, "al": 0.8}
+KEY_WEIGHT = {"n": 1.0, "p": 0.6, "b": 1.0, "x": 1.0, "nn": 1.2, "a": 0.8, "al": 0.8, "xp": 0.8, "t": 1.0}
 
 
 def _adjacent_pairs(tok_df, prefix, sort_pair):
@@ -65,6 +65,10 @@ def make_keys(df):
         _adjacent_pairs(core, "b", True),
         df.filter(pl.col("name_core").str.len_chars() >= 5).select(
             "rid", "country", pl.concat_str([pl.lit("x|"), pl.col("name_core").str.replace_all(" ", "")]).alias("key")),
+        df.with_columns(pl.col("name_core").str.replace_all(" ", "").alias("ns")).filter(pl.col("ns").str.len_chars() >= 8)
+        .select("rid", "country", pl.concat_str([pl.lit("xp|"), pl.col("ns").str.slice(0, 8)]).alias("key")),
+        df.filter(pl.col("core").list.len() >= 3).select(
+            "rid", "country", pl.concat_str([pl.lit("t|"), pl.col("core").list.head(3).list.sort().list.join(" ")]).alias("key")),
     ]
     nums = _explode_tokens(df.with_columns(pl.col("addr_nums").list.head(2)), "addr_nums")
     nums = pl.concat([nums, df.select("rid", "country", pl.col("addr_nums").list.first().alias("tok"),
