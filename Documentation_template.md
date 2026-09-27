@@ -13,7 +13,7 @@ record (recall ceiling ≈96–97 %). A LightGBM pairwise matcher scores them fr
 and blocking-context features. A second LightGBM stage then re-scores each record's top links, adding
 context from competing candidates and from the other records pointing at the same entity. The
 decision threshold is tuned for macro F0.5 on out-of-fold predictions, giving a validation macro
-F0.5 of **≈0.963**.
+F0.5 of **0.9673**.
 
 ---
 
@@ -84,7 +84,7 @@ For every query we sum the weights of the keys it shares with each Source 1 reco
 **top 10** by score. The key tables are joined in Polars, in chunks, in separate processes to bound
 memory.
 
-* **Candidate pairs generated:** ≈99 M (train), ≈97.6 M (test); ~9.7 per Source 2/3 record, versus
+* **Candidate pairs generated:** ≈100 M (train), ≈98.1 M (test); ~9.7 per Source 2/3 record, versus
   1.7 M × 10 M ≈ 1.7·10¹³ possible pairs, a reduction ratio above 0.999999.
 * **How you ensured true matches were not lost:** many redundant key families let one clean token,
   number or address fragment suffice. Recall@K was measured on training data (recall@1 ≈ 0.93,
@@ -120,7 +120,7 @@ folds split by Source 1 entity.
 **Assignment and threshold selection method:** each query is linked to its arg-max stage-2 link when
 the probability is at least *t*. *t* is chosen by sweeping and computing the exact challenge metric,
 macro F0.5 over all 2.2 M training Source 1 entities, singletons included, on out-of-fold
-predictions. The sweep gave t = 0.65. A per-entity expected-F0.5 top-k rule was also tried
+predictions. The sweep gave t = 0.7 (v3). A per-entity expected-F0.5 top-k rule was also tried
 (`postprocess.py`) but did not beat the threshold.
 
 ---
@@ -131,7 +131,7 @@ predictions. The sweep gave t = 0.65. A per-entity expected-F0.5 top-k rule was 
 |---|---|---|---|
 | v1: stage 1, threshold 0.7 | 0.9606 | 0.927 | 0.866 |
 | v2: + stage-2 context model, threshold 0.65 | 0.9632 | 0.926 | 0.874 |
-| v3: + normalisation/blocking fixes, more data | see README / final log | | |
+| v3: + look-alike-digit/phone/domain normalisation, prefix & 3-token keys, house-number similarity, 1.5× training data, 500 rounds; stage 2, threshold 0.7 | **0.9673** | 0.929 | 0.879 |
 
 (P and R are macro averages; singletons count P = R = 0 when correctly left empty and F = 1.)
 
@@ -173,7 +173,7 @@ about 2 hours and needs no external data or pretrained models.
 
 `candidate_pairs.tsv` is the input of the final (stage-2) model: the top-3 stage-1 links of every
 Source 2/3 record (≈29.7 M pairs on test), so every matched ID is also a candidate. The upstream
-blocking output (top-10 per record, ≈97.6 M pairs) is the stage-1 input.
+blocking output (top-10 per record, ≈98.1 M pairs) is the stage-1 input.
 
 ### B. Additional Results
 Blocking recall on a 3 % query sample, as a function of K: @1 0.929, @3 0.952, @5 0.959,
@@ -182,7 +182,11 @@ Blocking recall on a 3 % query sample, as a function of K: @1 0.929, @3 0.952, @
 Stage-1 threshold sweep (OOF macro F0.5): 0.3 → 0.9501, 0.4 → 0.9558, 0.5 → 0.9589,
 0.6 → 0.9603, 0.7 → 0.9606, 0.8 → 0.9591, 0.9 → 0.9521.
 
-Stage-2 threshold sweep: 0.5 → 0.9613, 0.6 → 0.9628, 0.65 → 0.9632, 0.7 → 0.9631, 0.8 → 0.9620.
+Stage-2 threshold sweep (v2): 0.5 → 0.9613, 0.6 → 0.9628, 0.65 → 0.9632, 0.7 → 0.9631, 0.8 → 0.9620.
+
+Final (v3) blocking recall on the full training set: 0.9663 at 9.75 candidates per record.
+v3 stage-1 sweep: 0.5 → 0.9633, 0.6 → 0.9646, 0.7 → 0.9648, 0.8 → 0.9635.
+v3 stage-2 sweep: 0.5 → 0.9655, 0.6 → 0.9669, 0.65 → 0.9672, 0.7 → 0.9673, 0.75 → 0.9670, 0.8 → 0.9664.
 
 Most important stage-1 features (gain): blocking rank, relative blocking score, address token-set
 ratio, first-house-number equality, blocking-score gap, full-name ratio.

@@ -20,6 +20,15 @@ requirements.txt      pinned dependencies (Python 3.11)
 
 ## Reproduce end-to-end
 
+One command (writes `output/matching_results.tsv` and `output/candidate_pairs.tsv`):
+
+```bash
+pip install -r requirements.txt
+ER_DATA_DIR=/path/to/student_resource/dataset ER_WORK_DIR=/path/to/scratch ./run_all.sh
+```
+
+Or step by step:
+
 ```bash
 pip install -r requirements.txt
 export ER_DATA_DIR=/path/to/student_resource/dataset   # contains train/ and test/
