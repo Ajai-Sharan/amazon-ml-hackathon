@@ -13,7 +13,7 @@ record (recall ceiling ≈96–97 %). A LightGBM pairwise matcher scores them fr
 and blocking-context features. A second LightGBM stage then re-scores each record's top links, adding
 context from competing candidates and from the other records pointing at the same entity. The
 decision threshold is tuned for macro F0.5 on out-of-fold predictions, giving a validation macro
-F0.5 of **0.9673**.
+F0.5 of **0.9679**.
 
 ---
 
@@ -107,6 +107,8 @@ memory.
 
 **Stage 2 — context re-scoring** (`stage2.py`), on each query's top-3 stage-1 links:
 - **Query side:** stage-1 probability and rank, best competing probability, margin, sum.
+- **Group support (v4):** name/phonetic/address similarity between the record and the entity's best
+  other confidently linked record, plus that record's probability.
 - **Entity side:** number of links pointing at the Source 1 entity, summed and maximum
   probability, the number of confident top-1 links overall and per source, this link's rank among
   them overall and within its source, and its probability relative to the entity's best link.
@@ -131,7 +133,8 @@ predictions. The sweep gave t = 0.7 (v3). A per-entity expected-F0.5 top-k rule 
 |---|---|---|---|
 | v1: stage 1, threshold 0.7 | 0.9606 | 0.927 | 0.866 |
 | v2: + stage-2 context model, threshold 0.65 | 0.9632 | 0.926 | 0.874 |
-| v3: + look-alike-digit/phone/domain normalisation, prefix & 3-token keys, house-number similarity, 1.5× training data, 500 rounds; stage 2, threshold 0.7 | **0.9673** | 0.929 | 0.879 |
+| v3: + look-alike-digit/phone/domain normalisation, prefix & 3-token keys, house-number similarity, 1.5× training data, 500 rounds; stage 2, threshold 0.7 | 0.9673 | 0.929 | 0.879 |
+| v4: + stage-2 group-support features (similarity of a record to the entity's best other linked record) | **0.9679** | 0.929 | 0.880 |
 
 (P and R are macro averages; singletons count P = R = 0 when correctly left empty and F = 1.)
 

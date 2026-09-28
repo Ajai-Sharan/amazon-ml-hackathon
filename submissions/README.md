@@ -4,7 +4,8 @@
 |---|---|---|
 | `v1_matching_results.zip` | stage-1 LightGBM, threshold 0.7 | 0.9606 |
 | `v2_matching_results.zip` | + stage-2 context model | 0.9632 |
-| `v3_matching_results.zip` | + normalisation/blocking fixes, more training data (**best**) | 0.9673 |
+| `v3_matching_results.zip` | + normalisation/blocking fixes, more training data | 0.9673 |
+| `v4_matching_results.zip` | + stage-2 group-support features (**best**) | 0.9679 |
 
 Each zip contains `matching_results.tsv` for the leaderboard upload.
 
